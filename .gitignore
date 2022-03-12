@@ -1,3 +1,6 @@
 data/
 results/
 slurm-*
+.Rproj.user
+sandbox/
+.snakemake/
