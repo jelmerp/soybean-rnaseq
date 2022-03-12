@@ -1,0 +1,123 @@
+"""
+An RNAseq analysis workflow performing the following steps:
+1. Concatenate the FASTQ files
+2. Run FastQC on the raw FASTQ files
+3. Index the reference genome with STAR
+4. Align the FASTQ files to the reference genomes with STAR
+5. Get per-sample gene counts from the alignments with featureCounts
+6. Run MultiQC on the output of FastQC, STAR, and featurecounts
+7. Run an example DE analysis
+"""
+
+from os.path import join
+
+## Workflow configuration file
+configfile: "workflow/config.yaml"
+
+## Get settings from the config file
+FASTQ_CONCAT_DIR=config["fastq_concat_dir"]
+OUT_DIR=config["out_dir"]
+REF_FASTA=config["ref_fasta"]
+REF_GFF=config["ref_gff"]
+METADATA=config["metadata"]
+
+MULTIQC_SCRIPT=config["multiqc_script"]
+FASTQC_SCRIPT=config["fastqc_script"]
+STAR_IDX_SCRIPT=config["star_idx_script"]
+STAR_MAP_SCRIPT=config["star_map_script"]
+FCOUNTS_SCRIPT=config["fcounts_script"]
+DE_SCRIPT=config["de_script"]
+
+## Wildcards
+READS = ["R1", "R2"]
+SAMPLES=glob_wildcards(
+    join(FASTQ_CONCAT_DIR, "{smp}_R1_001.fastq.gz")
+    ).smp
+# print("\n## Number of samples:", len(SAMPLES))
+# print("## List of samples:")
+# print(SAMPLES)
+
+## Define all output dirs
+FASTQC_DIR=join(OUT_DIR, "fastqc")
+MULTIQC_DIR=join(OUT_DIR, "multiqc")
+STAR_IDX_DIR=join(OUT_DIR, "star_index")
+STAR_MAP_DIR=join(OUT_DIR, "star")
+FCOUNTS_DIR=join(OUT_DIR, "featurecounts")
+DE_DIR=join(OUT_DIR, "DE")
+
+localrules: all, clean
+
+rule all:
+    input:
+       join(MULTIQC_DIR, "multiqc_report.html"),
+       join(FCOUNTS_DIR, "counts.txt"),
+       join(DE_DIR, "treatment-only_Line_M92220_Williams_DE.txt")
+
+rule fastqc:
+    input:
+        join(FASTQ_CONCAT_DIR, "{smp}_{read}_001.fastq.gz"),
+    output:
+        join(FASTQC_DIR, "{smp}_{read}_001_fastqc.html"),
+    shell:
+        "{FASTQC_SCRIPT} -i {input} -o {FASTQC_DIR}"
+
+rule index_genome:
+    input:
+        fa=REF_FASTA,
+        gff=REF_GFF,
+    output:
+        join(STAR_IDX_DIR, "Genome"),
+    resources:
+        cpus=16, mem_gb=64
+    shell:
+        "{STAR_IDX_SCRIPT} -i {input.fa} -a {input.gff} -o {STAR_IDX_DIR}"
+
+rule map_reads:
+    input:
+        index=join(STAR_IDX_DIR, "Genome"),
+        fq=join(FASTQ_CONCAT_DIR, "{smp}_R1_001.fastq.gz"),
+    output:
+        join(STAR_MAP_DIR, "{smp}_Aligned.sortedByCoord.out.bam")
+    resources:
+        cpus=12, mem_gb=100, time_min=180
+    shell:
+        "{STAR_MAP_SCRIPT} -i {input.fq} -r {STAR_IDX_DIR} -o {STAR_MAP_DIR}"
+
+rule count_reads:
+    input:
+        bam=expand("{star_map_dir}/{smp}_Aligned.sortedByCoord.out.bam",
+                   smp = SAMPLES, star_map_dir = STAR_MAP_DIR),
+        gff=REF_GFF,
+    resources:
+        cpus=4
+    output:
+        join(FCOUNTS_DIR, "counts.txt"),
+    shell:
+        "{FCOUNTS_SCRIPT} -i {STAR_MAP_DIR} -a {input.gff} -o {output}"
+
+rule multiqc:
+    input:
+        expand("{fastqc_dir}/{smp}_{read}_001_fastqc.html",
+               smp=SAMPLES, fastqc_dir=FASTQC_DIR, read=READS),
+        join(FCOUNTS_DIR, "counts.txt"),
+        expand("{star_map_dir}/{smp}_Aligned.sortedByCoord.out.bam",
+               smp=SAMPLES, star_map_dir=STAR_MAP_DIR),
+    output:
+        join(MULTIQC_DIR, "multiqc_report.html"),
+    shell:
+        "{MULTIQC_SCRIPT} -i {OUT_DIR} -o {MULTIQC_DIR}"
+
+rule DE:
+    input:
+        counts=join(FCOUNTS_DIR, "counts.txt"),
+    output:
+        join(DE_DIR, "treatment-only_Line_M92220_Williams_DE.txt"),
+    shell:
+        """
+        module load R/4.1.0-gnu9.1;
+        {DE_SCRIPT} -c {input.counts} -m {METADATA} -o {DE_DIR}
+        """
+
+rule clean:
+    shell:
+        "rm -rf {OUT_DIR}"

@@ -1,0 +1,13 @@
+fastq_concat_dir: "data/fastq/concat/"
+out_dir: "results"
+ref_fasta: "data/ref/jgi/phytozome/Gmax/Wm82.a4.v1/assembly/Gmax_508_v4.0.fa"
+ref_gff: "data/ref/jgi/phytozome/Gmax/Wm82.a4.v1/annotation/Gmax_508_Wm82.a4.v1.gene_exons.gff3"
+metadata: "metadata/metadata.csv"
+fastq_remove_string: "NN_Pool_"
+
+fastqc_script: "mcic-scripts/qc/fastqc.sh"
+multiqc_script: "mcic-scripts/qc/multiqc.sh"
+star_idx_script: "mcic-scripts/rnaseq/star_index.sh"
+star_map_script: "mcic-scripts/rnaseq/star_align.sh"
+fcounts_script: "mcic-scripts/rnaseq/featurecounts.sh"
+de_script: "scripts/DE_24hpi.R"

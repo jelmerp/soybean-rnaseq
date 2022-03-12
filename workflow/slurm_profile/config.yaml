@@ -1,0 +1,11 @@
+cluster: "sbatch --account={resources.account}
+                 --time={resources.time_min}
+                 --mem={resources.mem_gb}G
+                 --cpus-per-task={resources.cpus}
+                 --output=slurm-{rule}_{wildcards}.out"
+
+default-resources: [cpus=1, mem_gb=4, time_min=60, account=PAS0471]
+
+jobs: 50
+latency-wait: 30
+use-conda: true
