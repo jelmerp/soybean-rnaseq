@@ -114,7 +114,7 @@ rule DE:
         join(DE_DIR, "treatment-only_Line_M92220_Williams_DE.txt"),
     shell:
         """
-        module load R/4.1.0-gnu9.1;
+        module purge; module load R/4.1.0-gnu9.1;
         {DE_SCRIPT} -c {input.counts} -m {METADATA} -o {DE_DIR}
         """
 
